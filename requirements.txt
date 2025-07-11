@@ -1,9 +1,6 @@
 streamlit
-scikit-learn
-joblib
-fpdf
-plotly
-pandas
 numpy
-SpeechRecognition
-streamlit-option-menu
+matplotlib
+fpdf
+pandas
+streamlit_webrtc
