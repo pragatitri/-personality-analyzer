@@ -1,183 +1,188 @@
 import streamlit as st
-import numpy as np
-import joblib
-import os
 import pandas as pd
-import plotly.graph_objects as go
-from fpdf import FPDF
 from datetime import datetime
-import speech_recognition as sr
-import unicodedata
-from streamlit_option_menu import option_menu
+import matplotlib.pyplot as plt
+import numpy as np
+from fpdf import FPDF
+import os
 
-# ---------------------------- Load Models ----------------------------
-model = joblib.load("personality_model.pkl")
-vectorizer = joblib.load("vectorizer.pkl")
+# Optional: Voice Input Module
+try:
+    from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+except:
+    webrtc_streamer = None
 
-# ---------------------------- Helper Data ----------------------------
-personality_data = {
-    "Extrovert": {
-        "desc": "You are social, outgoing, and energized by being around people.",
-        "tip": "Engage in team-based projects to amplify your strengths.",
-        "quote": "The more you praise and celebrate your life, the more there is in life to celebrate.",
-        "jobs": ["Public Speaker", "Sales Manager", "Team Lead"]
-    },
-    "Introvert": {
-        "desc": "You enjoy solitude, deep thoughts, and recharge by spending time alone.",
-        "tip": "Leverage your focus and depth in fields requiring attention to detail.",
-        "quote": "Silence is only frightening to people who are compulsively verbalizing.",
-        "jobs": ["Writer", "Researcher", "Software Developer"]
-    },
-    "Leader": {
-        "desc": "You take initiative, guide others, and enjoy managing responsibilities.",
-        "tip": "Continue improving your communication and delegation skills.",
-        "quote": "Leadership is not about being in charge. It's about taking care of those in your charge.",
-        "jobs": ["Project Manager", "Entrepreneur", "HR Head"]
-    },
-    "Thinker": {
-        "desc": "You are analytical, curious, and enjoy deep understanding.",
-        "tip": "Apply your problem-solving in research or tech-heavy roles.",
-        "quote": "The important thing is not to stop questioning. Curiosity has its own reason for existing.",
-        "jobs": ["Scientist", "Data Analyst", "Philosopher"]
+# ---------------- UI Setup ---------------- #
+st.set_page_config(page_title="Personality Mix Analyzer", layout="wide")
+st.markdown(
+    """
+    <style>
+    body {
+        background: linear-gradient(135deg, #e0c3fc, #8ec5fc);
     }
-}
+    .reportview-container {
+        background: linear-gradient(135deg, #e0c3fc, #8ec5fc);
+    }
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
-# ---------------------------- PDF Utilities ----------------------------
-def clean(text):
-    return ''.join(c for c in text if unicodedata.category(c)[0] != 'C' and ord(c) < 128)
+st.markdown("<h1 style='text-align: center; color: #4B0082;'>🧬 Personality Mix Analyzer</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Predict your personality traits using text or voice input</p>", unsafe_allow_html=True)
+st.markdown("---")
 
-def generate_pdf(user_name, text_input, top_trait, scores, data):
+# ---------------- Sidebar ---------------- #
+with st.sidebar:
+    st.markdown("## 🗂️ About This App")
+    st.info("This app predicts personality traits based on your input using Machine Learning.")
+    st.markdown("Built with ❤️ by **Pragati Tripathi**")
+    language = st.radio("🌐 Choose Language", ['English', 'Hindi'])
+    st.markdown("---")
+    show_history = st.checkbox("📊 Show Prediction History")
+
+# ---------------- Input ---------------- #
+user_name = st.text_input("Enter your name:")
+user_input = st.text_area("📝 Enter a paragraph about yourself:")
+
+# ---------------- Voice Input (Optional) ---------------- #
+if webrtc_streamer:
+    st.markdown("🎙️ Or record your voice input below:")
+    webrtc_streamer(key="example")
+
+# ---------------- Dummy ML Model ---------------- #
+def predict_personality(text):
+    # Dummy model returns fixed values for demonstration
+    return {
+        "Openness": 70,
+        "Conscientiousness": 65,
+        "Extraversion": 55,
+        "Agreeableness": 80,
+        "Neuroticism": 35
+    }
+
+# ---------------- Explanation Generator ---------------- #
+def generate_explanations(traits, lang="English"):
+    messages = []
+    for trait, value in traits.items():
+        if lang == "English":
+            if trait == "Openness":
+                msg = f"You are {value}% open to new experiences."
+            elif trait == "Conscientiousness":
+                msg = f"You show {value}% responsibility and discipline."
+            elif trait == "Extraversion":
+                msg = f"You exhibit {value}% sociability."
+            elif trait == "Agreeableness":
+                msg = f"You reflect {value}% kindness and cooperation."
+            elif trait == "Neuroticism":
+                msg = f"You have {value}% emotional instability."
+        else:  # Hindi
+            if trait == "Openness":
+                msg = f"आप नई चीज़ों के लिए {value}% खुले विचारों वाले हैं।"
+            elif trait == "Conscientiousness":
+                msg = f"आप {value}% जिम्मेदार और अनुशासित हैं।"
+            elif trait == "Extraversion":
+                msg = f"आप {value}% मिलनसार हैं।"
+            elif trait == "Agreeableness":
+                msg = f"आप {value}% दयालु और सहयोगी हैं।"
+            elif trait == "Neuroticism":
+                msg = f"आपमें {value}% भावनात्मक अस्थिरता है।"
+        messages.append(msg)
+    return messages
+
+# ---------------- Job Role Suggestions ---------------- #
+def suggest_roles(traits):
+    dominant_trait = max(traits, key=traits.get)
+
+    if dominant_trait == "Openness":
+        return ["Graphic Designer", "Writer", "Product Designer", "Innovation Strategist"]
+    elif dominant_trait == "Conscientiousness":
+        return ["Project Manager", "Data Analyst", "Quality Assurance", "Accountant"]
+    elif dominant_trait == "Extraversion":
+        return ["Sales Executive", "HR Manager", "Public Relations Officer", "Event Coordinator"]
+    elif dominant_trait == "Agreeableness":
+        return ["Teacher", "Psychologist", "Nurse", "Social Worker"]
+    elif dominant_trait == "Neuroticism" and traits["Neuroticism"] < 40:
+        return ["Researcher", "Doctor", "Engineer", "Software Developer"]
+    else:
+        return ["Consultant", "Generalist", "Content Creator"]
+
+# ---------------- Chart ---------------- #
+def show_chart(traits):
+    labels = list(traits.keys())
+    values = list(traits.values())
+    angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
+    values += values[:1]
+    angles += angles[:1]
+
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.fill(angles, values, color='skyblue', alpha=0.4)
+    ax.plot(angles, values, color='blue', linewidth=2)
+    ax.set_yticklabels([])
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    st.pyplot(fig)
+
+# ---------------- PDF Generator ---------------- #
+def generate_pdf_report(name, traits, explanations):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_left_margin(15)
-    pdf.set_right_margin(15)
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(180, 10, txt="Personality Mix Analyzer Report", ln=True, align="C")
-    pdf.set_font("Arial", "", 12)
+    pdf.set_font("Arial", size=14)
+    pdf.cell(200, 10, txt="Personality Mix Analyzer Report", ln=True, align='C')
     pdf.ln(10)
-    pdf.cell(180, 10, txt=f"Name: {clean(user_name)}", ln=True)
-    pdf.cell(180, 10, txt=f"Date: {datetime.now().strftime('%d-%m-%Y %H:%M')}", ln=True)
-    pdf.ln(5)
-    pdf.multi_cell(180, 10, clean(f"Input Summary:\n{text_input}"))
-    pdf.ln(5)
-    pdf.cell(180, 10, txt=f"Top Trait: {clean(top_trait)}", ln=True)
-    pdf.multi_cell(180, 10, clean(f"Explanation: {data['desc']}"))
-    pdf.multi_cell(180, 10, clean(f"Tip: {data['tip']}"))
-    pdf.multi_cell(180, 10, clean(f"Quote: {data['quote']}"))
-    pdf.multi_cell(180, 10, clean(f"Recommended Roles: {', '.join(data['jobs'])}"))
-    pdf.ln(5)
-    pdf.cell(180, 10, txt="Confidence Scores:", ln=True)
-    for trait, score in scores.items():
-        pdf.cell(180, 10, txt=f"{trait}: {score * 100:.2f}%", ln=True)
+    pdf.cell(200, 10, txt=f"Name: {name}", ln=True)
+    pdf.cell(200, 10, txt=f"Date: {datetime.now().strftime('%d %B %Y')}", ln=True)
     pdf.ln(10)
-    pdf.cell(180, 10, txt="Designed with love by Pragati Tripathi", ln=True, align="C")
-    filename = f"report_{user_name}_{datetime.now().strftime('%Y%m%d%H%M%S')}.pdf"
-    path = os.path.join(os.getcwd(), filename)
+    for trait, score in traits.items():
+        pdf.cell(200, 10, txt=f"{trait}: {score}%", ln=True)
+    pdf.ln(10)
+    for line in explanations:
+        safe_line = line.encode('latin-1', 'ignore').decode('latin-1')
+        pdf.multi_cell(180, 10, txt=safe_line)
+    path = f"{name}_personality_report.pdf"
     pdf.output(path)
     return path
 
-# ---------------------------- Chart ----------------------------
-def show_radar_chart(scores):
-    labels = list(scores.keys()) + [list(scores.keys())[0]]
-    values = list(scores.values()) + [list(scores.values())[0]]
-    fig = go.Figure(go.Scatterpolar(r=values, theta=labels, fill='toself'))
-    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=False)
-    st.plotly_chart(fig)
-
-# ---------------------------- Speech Input ----------------------------
-def get_speech_input():
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.info("🎙 Speak now...")
-        audio = r.listen(source)
-    try:
-        return r.recognize_google(audio)
-    except:
-        return ""
-
-# ---------------------------- Main UI ----------------------------
-st.set_page_config(page_title="Personality Analyzer", layout="centered")
-selected = option_menu(None, ["Analyze", "History", "About"],
-    icons=['person-bounding-box', 'clock-history', 'info-circle'],
-    default_index=0, orientation="horizontal")
-
-if selected == "Analyze":
-    st.title("🧠 Personality Mix Analyzer")
-    user_name = st.text_input("👤 Enter your name:")
-    input_method = st.radio("🎯 Choose input method:", ["📝 Type", "🎙 Speak"])
-    user_input = ""
-    if input_method == "📝 Type":
-        user_input = st.text_area("✍️ Write something about yourself (4–5 lines):")
-    elif input_method == "🎙 Speak":
-        if st.button("🎤 Start Recording"):
-            user_input = get_speech_input()
-            st.success(f"You said: {user_input}")
-
-    if st.button("🔍 Analyze Personality"):
-        if not user_name or not user_input.strip():
-            st.warning("Please enter your name and description.")
-        else:
-            X = vectorizer.transform([user_input])
-            probs = model.predict_proba(X)[0]
-            classes = model.classes_
-            scores = dict(zip(classes, probs * 100))
-            top_trait = max(scores, key=scores.get)
-            data = personality_data[top_trait]
-
-            st.subheader(f"📚 Top Trait: {top_trait}")
-            st.write(data["desc"])
-            st.write(f"💬 Quote: *{data['quote']}*")
-            st.write(f"💡 Tip: {data['tip']}")
-            st.write(f"👔 Suggested Roles: {', '.join(data['jobs'])}")
-
-            st.subheader("📊 Confidence Scores:")
-            for trait, score in scores.items():
-                st.write(f"{trait}: {score:.2f}%")
-                st.progress(score / 100)
-
-            st.subheader("📈 Radar Chart Overview:")
-            show_radar_chart(scores)
-
-            path = generate_pdf(user_name, user_input, top_trait, scores, data)
-            with open(path, "rb") as file:
-                st.download_button("📄 Download Report as PDF", data=file, file_name=os.path.basename(path), mime="application/pdf")
-
-            # Save history
-            df_new = pd.DataFrame([{
-                "Name": user_name,
-                "Text": user_input,
-                "Top Trait": top_trait,
-                "Date": datetime.now().strftime('%d-%m-%Y %H:%M')
-            }])
-            history_path = "prediction_history.csv"
-            if os.path.exists(history_path):
-                df_old = pd.read_csv(history_path)
-                df_all = pd.concat([df_old, df_new], ignore_index=True)
-            else:
-                df_all = df_new
-            df_all.to_csv(history_path, index=False)
-            st.success("✅ Analysis saved successfully!")
-
-elif selected == "History":
-    st.title("🕓 Past Predictions")
-    history_path = "prediction_history.csv"
-    if os.path.exists(history_path):
-        df = pd.read_csv(history_path)
-        st.dataframe(df[::-1])
+# ---------------- History ---------------- #
+def save_result(name, traits):
+    df = pd.DataFrame([{"Name": name, "Date": datetime.now(), **traits}])
+    if os.path.exists("history.csv"):
+        df.to_csv("history.csv", mode='a', header=False, index=False)
     else:
-        st.info("No history found.")
+        df.to_csv("history.csv", index=False)
 
-elif selected == "About":
-    st.title("ℹ️ About This App")
-    st.markdown("""
-    This app analyzes user-written or spoken descriptions to predict personality traits
-    based on machine learning. It includes PDF reports, role suggestions, and radar charts.
+if show_history and os.path.exists("history.csv"):
+    history_df = pd.read_csv("history.csv")
+    st.subheader("📜 Past Predictions")
+    st.dataframe(history_df)
 
-    **Developed by:** Pragati Tripathi  
-    **Built with:** Streamlit, scikit-learn, Python, FPDF, Plotly  
-    **Version:** Final Showcase
-    """)
+# ---------------- Predict Button ---------------- #
+if st.button("🔍 Analyze Personality"):
+    if user_input.strip() == "" or user_name.strip() == "":
+        st.warning("Please enter both your name and a paragraph.")
+    else:
+        trait_mix = predict_personality(user_input)
+        explanations = generate_explanations(trait_mix, language)
+        st.success("✅ Personality Analysis Complete!")
+        st.balloons()
 
+        st.subheader("🧠 Trait Breakdown:")
+        for e in explanations:
+            st.markdown(f"• {e}")
+
+        # 🧠 Show Suggested Career Roles
+        roles = suggest_roles(trait_mix)
+        st.markdown("### 💼 Suitable Career Roles:")
+        for r in roles:
+            st.markdown(f"✅ {r}")
+
+        show_chart(trait_mix)
+        save_result(user_name, trait_mix)
+
+        # PDF Generation
+        path = generate_pdf_report(user_name, trait_mix, explanations)
+        with open(path, "rb") as f:
+            st.download_button("📄 Download Report (PDF)", data=f, file_name=path, mime="application/pdf")
+
+# ---------------- Footer ---------------- #
 st.markdown("---")
-st.markdown("<center><small>🚀 Designed by Pragati • All Rights Reserved</small></center>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Made with 💜 by <b>Pragati Tripathi</b> | 2025</p>", unsafe_allow_html=True)
