@@ -4,3 +4,8 @@ matplotlib
 fpdf
 pandas
 streamlit_webrtc
+qrcode[pil]
+pandas
+fpdf
+qrcode
+
